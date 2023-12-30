@@ -1,3 +1,16 @@
+# client authentication method: private_key_jwt
+# authorization grant type: authorization_code
+authorization_code_sample:
+  client_id: '11111111-1111-1111-1111-111111111111'
+  redirect_uri: 'https://example.com/oatuh2/callback'
+  token_endpoint: 'https://example.com/oauth2/token'
+  algorithm: 'RS256'
+  key: '{"key": "value"}'
+  scopes:
+    - "openid"
+    - "email"
+# client authentication method: private_key_jwt
+# authorization grant type: client_credentials
 local:
   client_id: '11111111-1111-1111-1111-111111111111'
   redirect_uri: 'https://example.com/oatuh2/callback'
