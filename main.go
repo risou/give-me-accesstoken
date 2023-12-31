@@ -2,9 +2,10 @@ package main
 
 import (
 	"flag"
-	"github.com/risou/give-me-accesstoken/app"
 	"log"
 	"os"
+
+	"github.com/risou/give-me-accesstoken/app"
 )
 
 func main() {
