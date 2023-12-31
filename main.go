@@ -8,24 +8,14 @@ import (
 	"github.com/lestrrat-go/jwx/jwa"
 	"github.com/lestrrat-go/jwx/jwk"
 	"github.com/lestrrat-go/jwx/jwt"
-	"gopkg.in/yaml.v3"
+	"github.com/risou/give-me-accesstoken/app"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 )
-
-type Config struct {
-	ClientID      string   `yaml:"client_id"`
-	RedirectURI   string   `yaml:"redirect_uri"`
-	TokenEndpoint string   `yaml:"token_endpoint"`
-	Alg           string   `yaml:"algorithm"`
-	Key           string   `yaml:"key"`
-	Scopes        []string `yaml:"scopes"`
-}
 
 type TokenResponse struct {
 	AccessToken string `json:"access_token"`
@@ -33,27 +23,7 @@ type TokenResponse struct {
 	ExpiresIn   int64  `json:"expires_in"`
 }
 
-func loadConfig(file string, configSet string) *Config {
-	data, err := os.ReadFile(file)
-	if err != nil {
-		log.Fatalf("Failed to read config file: %s", err)
-	}
-
-	configs := make(map[string]Config)
-	if err := yaml.Unmarshal(data, &configs); err != nil {
-		log.Fatalf("Failed to unmarshal config file: %s", err)
-	}
-
-	for key, config := range configs {
-		if key == configSet {
-			log.Printf("[debug] Config: %#v", config)
-			return &config
-		}
-	}
-	return nil
-}
-
-func generateClientAssertion(config Config) ([]byte, error) {
+func generateClientAssertion(config app.Config) ([]byte, error) {
 	keySet := jwk.NewSet()
 	if err := json.Unmarshal([]byte(config.Key), &keySet); err != nil {
 		log.Fatalf("Failed to unmarshal private key: %s", err)
@@ -91,7 +61,7 @@ func generateClientAssertion(config Config) ([]byte, error) {
 	return signed, nil
 }
 
-func tokenRequest(config Config, clientAssertion string) (TokenResponse, error) {
+func tokenRequest(config app.Config, clientAssertion string) (TokenResponse, error) {
 	data := url.Values{}
 
 	data.Set("grant_type", "client_credentials")
@@ -135,7 +105,7 @@ func main() {
 
 	flag.Parse()
 
-	conf := loadConfig(configFile, configSet)
+	conf := app.LoadConfig(configFile, configSet)
 
 	if conf == nil {
 		log.Fatalf("Failed to load config")
