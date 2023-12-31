@@ -15,7 +15,7 @@ type Config struct {
 	Scopes        []string `yaml:"scopes"`
 }
 
-func LoadConfig(file string, configSet string) *Config {
+func loadConfig(file string, configSet string) *Config {
 	data, err := os.ReadFile(file)
 	if err != nil {
 		log.Fatalf("Failed to read config file: %s", err)
