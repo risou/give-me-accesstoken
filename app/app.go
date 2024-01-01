@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -65,7 +66,7 @@ func generateClientAssertion(config Config) ([]byte, error) {
 	return signed, nil
 }
 
-func tokenRequest(config Config, clientAssertion string) (TokenResponse, error) {
+func tokenRequest(config Config, clientAssertion string) (*TokenResponse, error) {
 	data := url.Values{}
 
 	data.Set("grant_type", "client_credentials")
@@ -77,6 +78,7 @@ func tokenRequest(config Config, clientAssertion string) (TokenResponse, error) 
 
 	req, err := http.NewRequest("POST", config.TokenEndpoint, strings.NewReader(data.Encode()))
 	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %s", err)
 		log.Fatalf("Failed to create request: %s", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -84,21 +86,41 @@ func tokenRequest(config Config, clientAssertion string) (TokenResponse, error) 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatalf("Failed to send request: %s", err)
+		return nil, fmt.Errorf("failed to send request: %s", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatalf("Failed to read response: %s", err)
+		return nil, fmt.Errorf("failed to read response: %s", err)
 	}
 
 	var tokenResponse TokenResponse
 	if err := json.Unmarshal(body, &tokenResponse); err != nil {
-		log.Fatalf("Failed to unmarshal response: %s", err)
+		return nil, fmt.Errorf("failed tu unmarshal response: %s", err)
 	}
 
-	return tokenResponse, nil
+	return &tokenResponse, nil
+}
+
+func executeClientCredentialsFlow(conf *Config) (*TokenResponse, error) {
+	signed, err := generateClientAssertion(*conf)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate client assertion: %s", err)
+	}
+
+	log.Printf("[debug] Signed token: %s", signed)
+
+	res, err := tokenRequest(*conf, string(signed))
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to request token: %s", err)
+	}
+
+	log.Printf("[debug] Access Token: %s", res.AccessToken)
+
+	return res, nil
 }
 
 func Run(option Option) error {
@@ -109,21 +131,15 @@ func Run(option Option) error {
 		log.Fatalf("Failed to load config")
 	}
 
-	signed, err := generateClientAssertion(*conf)
-
-	if err != nil {
-		log.Fatalf("Failed to generate client assertion: %s", err)
+	switch conf.GrantType {
+	case "authorization_code":
+		log.Printf("[debug] Authorization Code Grant")
+	case "client_credentials":
+		log.Printf("[debug] Client Credentials Grant")
+		executeClientCredentialsFlow(conf)
+	default:
+		return fmt.Errorf("unsupported authorization grant: %s", conf.GrantType)
 	}
-
-	log.Printf("[debug] Signed token: %s", signed)
-
-	res, err := tokenRequest(*conf, string(signed))
-
-	if err != nil {
-		log.Fatalf("Failed to request token: %s", err)
-	}
-
-	log.Printf("[debug] Access Token: %s", res.AccessToken)
 
 	return nil
 }
