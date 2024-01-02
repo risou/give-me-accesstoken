@@ -1,12 +1,15 @@
 package app
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"strings"
 	"time"
@@ -26,6 +29,12 @@ type TokenResponse struct {
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type"`
 	ExpiresIn   int64  `json:"expires_in"`
+}
+
+func generateRandomState() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return fmt.Sprintf("%x", b)
 }
 
 func generateClientAssertion(config Config) ([]byte, error) {
@@ -52,7 +61,7 @@ func generateClientAssertion(config Config) ([]byte, error) {
 
 	token.Set(jwt.IssuerKey, config.ClientID)
 	token.Set(jwt.SubjectKey, config.ClientID)
-	token.Set(jwt.AudienceKey, config.TokenEndpoint)
+	token.Set(jwt.AudienceKey, config.JWTClaims.Audience)
 	token.Set(jwt.IssuedAtKey, currentTime.Unix())
 	token.Set(jwt.ExpirationKey, currentTime.Add(time.Hour).Unix())
 	token.Set(jwt.JwtIDKey, uuid.New().String())
@@ -103,6 +112,113 @@ func tokenRequest(config Config, clientAssertion string) (*TokenResponse, error)
 	return &tokenResponse, nil
 }
 
+func executeAuthorizationCodeFlow(conf *Config) (*TokenResponse, error) {
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cookie jar: %s", err)
+	}
+	client := &http.Client{
+		Jar: jar,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	loginReq, err := http.NewRequest("POST", conf.Login.LoginEndpoint, bytes.NewBuffer([]byte(conf.Login.AuthInfo)))
+	loginReq.Header.Set("Content-Type", "application/json")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %s", err)
+	}
+
+	_, err = client.Do(loginReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %s", err)
+	}
+
+	state := generateRandomState()
+
+	queryParams := url.Values{}
+	queryParams.Set("response_type", "code")
+	queryParams.Set("client_id", conf.ClientID)
+	queryParams.Set("redirect_uri", conf.RedirectURI)
+	queryParams.Set("scope", strings.Join(conf.Scopes, " "))
+	queryParams.Set("state", state)
+
+	authURL := conf.AuthEndpoint + "?" + queryParams.Encode()
+
+	log.Printf("[debug] Auth URL: %s", authURL)
+
+	authReq, err := http.NewRequest("GET", authURL, nil)
+	authReq.Header.Set("Content-Type", "application/json")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %s", err)
+	}
+
+	authResp, err := client.Do(authReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %s", err)
+	}
+	defer authResp.Body.Close()
+
+	var code string
+	if location, ok := authResp.Header["Location"]; ok && len(location) > 0 {
+		locationURL, err := url.Parse(location[0])
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse location: %s", err)
+		}
+		code = locationURL.Query().Get("code")
+	} else {
+		return nil, fmt.Errorf("failed to get code")
+	}
+
+	log.Printf("[debug] Code: %s", code)
+
+	clientAssertion, err := generateClientAssertion(*conf)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate client assertion: %s", err)
+	}
+
+	log.Printf("[debug] Signed token: %s", clientAssertion)
+
+	// TODO: refactor the following code and TokenRequest()
+	data := url.Values{}
+
+	data.Set("grant_type", "authorization_code")
+	data.Set("client_id", conf.ClientID)
+	data.Set("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
+	data.Set("client_assertion", string(clientAssertion))
+	data.Set("redirect_uri", conf.RedirectURI)
+	data.Set("scope", strings.Join(conf.Scopes, " "))
+	data.Set("code", code)
+
+	req, err := http.NewRequest("POST", conf.TokenEndpoint, strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %s", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %s", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %s", err)
+	}
+
+	var tokenResponse TokenResponse
+	if err := json.Unmarshal(body, &tokenResponse); err != nil {
+		return nil, fmt.Errorf("failed tu unmarshal response: %s", err)
+	}
+
+	log.Printf("[debug] Token Response: %#v", tokenResponse)
+	log.Printf("[debug] Access Token: %s", tokenResponse.AccessToken)
+
+	return &tokenResponse, nil
+}
+
 func executeClientCredentialsFlow(conf *Config) (*TokenResponse, error) {
 	signed, err := generateClientAssertion(*conf)
 
@@ -131,15 +247,21 @@ func Run(option Option) error {
 		log.Fatalf("Failed to load config")
 	}
 
+	var result *TokenResponse
+	var err error
+
 	switch conf.GrantType {
 	case "authorization_code":
 		log.Printf("[debug] Authorization Code Grant")
+		result, err = executeAuthorizationCodeFlow(conf)
 	case "client_credentials":
 		log.Printf("[debug] Client Credentials Grant")
-		executeClientCredentialsFlow(conf)
+		result, err = executeClientCredentialsFlow(conf)
 	default:
 		return fmt.Errorf("unsupported authorization grant: %s", conf.GrantType)
 	}
 
-	return nil
+	log.Printf("[debug] Result: %#v", result)
+
+	return err
 }
