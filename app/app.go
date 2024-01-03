@@ -40,7 +40,7 @@ func generateRandomState() string {
 func generateClientAssertion(config Config) ([]byte, error) {
 	keySet := jwk.NewSet()
 	if err := json.Unmarshal([]byte(config.Key), &keySet); err != nil {
-		log.Fatalf("Failed to unmarshal private key: %s", err)
+		return nil, fmt.Errorf("failed to unmarshal key: %s", err)
 	}
 
 	var privateKey jwk.Key
@@ -68,8 +68,7 @@ func generateClientAssertion(config Config) ([]byte, error) {
 
 	signed, err := jwt.Sign(token, jwa.SignatureAlgorithm(config.Alg), privateKey)
 	if err != nil {
-		log.Fatalf("Failed to sign token: %s", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to sign token: %s", err)
 	}
 
 	return signed, nil
@@ -88,7 +87,6 @@ func tokenRequest(config Config, clientAssertion string) (*TokenResponse, error)
 	req, err := http.NewRequest("POST", config.TokenEndpoint, strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %s", err)
-		log.Fatalf("Failed to create request: %s", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -146,8 +144,6 @@ func executeAuthorizationCodeFlow(conf *Config) (*TokenResponse, error) {
 
 	authURL := conf.AuthEndpoint + "?" + queryParams.Encode()
 
-	log.Printf("[debug] Auth URL: %s", authURL)
-
 	authReq, err := http.NewRequest("GET", authURL, nil)
 	authReq.Header.Set("Content-Type", "application/json")
 	if err != nil {
@@ -175,14 +171,10 @@ func executeAuthorizationCodeFlow(conf *Config) (*TokenResponse, error) {
 		return nil, fmt.Errorf("failed to get code")
 	}
 
-	log.Printf("[debug] Code: %s", code)
-
 	clientAssertion, err := generateClientAssertion(*conf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate client assertion: %s", err)
 	}
-
-	log.Printf("[debug] Signed token: %s", clientAssertion)
 
 	// TODO: refactor the following code and TokenRequest()
 	data := url.Values{}
@@ -217,9 +209,6 @@ func executeAuthorizationCodeFlow(conf *Config) (*TokenResponse, error) {
 		return nil, fmt.Errorf("failed tu unmarshal response: %s", err)
 	}
 
-	log.Printf("[debug] Token Response: %#v", tokenResponse)
-	log.Printf("[debug] Access Token: %s", tokenResponse.AccessToken)
-
 	return &tokenResponse, nil
 }
 
@@ -230,15 +219,11 @@ func executeClientCredentialsFlow(conf *Config) (*TokenResponse, error) {
 		return nil, fmt.Errorf("failed to generate client assertion: %s", err)
 	}
 
-	log.Printf("[debug] Signed token: %s", signed)
-
 	res, err := tokenRequest(*conf, string(signed))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to request token: %s", err)
 	}
-
-	log.Printf("[debug] Access Token: %s", res.AccessToken)
 
 	return res, nil
 }
@@ -248,7 +233,7 @@ func Run(option Option) error {
 	conf := loadConfig(option.ConfigFile, option.ConfigSet)
 
 	if conf == nil {
-		log.Fatalf("Failed to load config")
+		return fmt.Errorf("failed to load config")
 	}
 
 	var result *TokenResponse
