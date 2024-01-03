@@ -167,6 +167,10 @@ func executeAuthorizationCodeFlow(conf *Config) (*TokenResponse, error) {
 			return nil, fmt.Errorf("failed to parse location: %s", err)
 		}
 		code = locationURL.Query().Get("code")
+		s := locationURL.Query().Get("state")
+		if s != state {
+			return nil, fmt.Errorf("state mismatch")
+		}
 	} else {
 		return nil, fmt.Errorf("failed to get code")
 	}
