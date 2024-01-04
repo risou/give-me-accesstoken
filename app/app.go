@@ -31,6 +31,15 @@ type TokenResponse struct {
 	ExpiresIn   int64  `json:"expires_in"`
 }
 
+type TokenRequestParams struct {
+	GrantType       string
+	Code            string
+	RedirectURI     string
+	ClientID        string
+	Scopes          []string
+	ClientAssertion string
+}
+
 func generateRandomState() string {
 	b := make([]byte, 16)
 	rand.Read(b)
@@ -74,17 +83,20 @@ func generateClientAssertion(config Config) ([]byte, error) {
 	return signed, nil
 }
 
-func tokenRequest(config Config, clientAssertion string) (*TokenResponse, error) {
+func tokenRequest(endpoint string, p TokenRequestParams) (*TokenResponse, error) {
 	data := url.Values{}
 
-	data.Set("grant_type", "client_credentials")
-	data.Set("client_id", config.ClientID)
+	data.Set("grant_type", p.GrantType)
+	data.Set("client_id", p.ClientID)
 	data.Set("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
-	data.Set("client_assertion", clientAssertion)
-	data.Set("redirect_uri", config.RedirectURI)
-	data.Set("scope", strings.Join(config.Scopes, " "))
+	data.Set("client_assertion", p.ClientAssertion)
+	data.Set("redirect_uri", p.RedirectURI)
+	data.Set("scope", strings.Join(p.Scopes, " "))
+	if p.GrantType == "authorization_code" {
+		data.Set("code", p.Code)
+	}
 
-	req, err := http.NewRequest("POST", config.TokenEndpoint, strings.NewReader(data.Encode()))
+	req, err := http.NewRequest("POST", endpoint, strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %s", err)
 	}
@@ -176,40 +188,21 @@ func executeAuthorizationCodeFlow(conf *Config) (*TokenResponse, error) {
 		return nil, fmt.Errorf("failed to generate client assertion: %s", err)
 	}
 
-	// TODO: refactor the following code and TokenRequest()
-	data := url.Values{}
+	params := TokenRequestParams{
+		GrantType:       "authorization_code",
+		ClientID:        conf.ClientID,
+		RedirectURI:     conf.RedirectURI,
+		Scopes:          conf.Scopes,
+		ClientAssertion: string(clientAssertion),
+		Code:            code,
+	}
 
-	data.Set("grant_type", "authorization_code")
-	data.Set("client_id", conf.ClientID)
-	data.Set("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
-	data.Set("client_assertion", string(clientAssertion))
-	data.Set("redirect_uri", conf.RedirectURI)
-	data.Set("scope", strings.Join(conf.Scopes, " "))
-	data.Set("code", code)
-
-	req, err := http.NewRequest("POST", conf.TokenEndpoint, strings.NewReader(data.Encode()))
+	tokenResponse, err := tokenRequest(conf.TokenEndpoint, params)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %s", err)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %s", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %s", err)
+		return nil, fmt.Errorf("failed to request token: %s", err)
 	}
 
-	var tokenResponse TokenResponse
-	if err := json.Unmarshal(body, &tokenResponse); err != nil {
-		return nil, fmt.Errorf("failed tu unmarshal response: %s", err)
-	}
-
-	return &tokenResponse, nil
+	return tokenResponse, nil
 }
 
 func executeClientCredentialsFlow(conf *Config) (*TokenResponse, error) {
@@ -219,7 +212,15 @@ func executeClientCredentialsFlow(conf *Config) (*TokenResponse, error) {
 		return nil, fmt.Errorf("failed to generate client assertion: %s", err)
 	}
 
-	res, err := tokenRequest(*conf, string(signed))
+	params := TokenRequestParams{
+		GrantType:       "client_credentials",
+		ClientID:        conf.ClientID,
+		RedirectURI:     conf.RedirectURI,
+		Scopes:          conf.Scopes,
+		ClientAssertion: string(signed),
+	}
+
+	res, err := tokenRequest(conf.TokenEndpoint, params)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to request token: %s", err)
