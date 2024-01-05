@@ -40,6 +40,12 @@ type TokenRequestParams struct {
 	ClientAssertion string
 }
 
+type AuthRequestParams struct {
+	ClientID    string
+	RedirectURI string
+	Scopes      []string
+}
+
 func generateRandomState() string {
 	b := make([]byte, 16)
 	rand.Read(b)
@@ -81,6 +87,48 @@ func generateClientAssertion(config Config) ([]byte, error) {
 	}
 
 	return signed, nil
+}
+
+func authorizationRequest(client *http.Client, endpoint string, p AuthRequestParams) (*string, error) {
+	state := generateRandomState()
+
+	queryParams := url.Values{}
+	queryParams.Set("response_type", "code")
+	queryParams.Set("client_id", p.ClientID)
+	queryParams.Set("redirect_uri", p.RedirectURI)
+	queryParams.Set("scope", strings.Join(p.Scopes, " "))
+	queryParams.Set("state", state)
+
+	authURL := endpoint + "?" + queryParams.Encode()
+
+	req, err := http.NewRequest("GET", authURL, nil)
+	req.Header.Set("Content-Type", "application/json")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %s", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %s", err)
+	}
+	defer resp.Body.Close()
+
+	var code string
+	if location, ok := resp.Header["Location"]; ok && len(location) > 0 {
+		locationURL, err := url.Parse(location[0])
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse location: %s", err)
+		}
+		s := locationURL.Query().Get("state")
+		if s != state {
+			return nil, fmt.Errorf("state mismatch")
+		}
+		code = locationURL.Query().Get("code")
+	} else {
+		return nil, fmt.Errorf("failed to get code")
+	}
+
+	return &code, nil
 }
 
 func tokenRequest(endpoint string, p TokenRequestParams) (*TokenResponse, error) {
@@ -145,42 +193,15 @@ func executeAuthorizationCodeFlow(conf *Config) (*TokenResponse, error) {
 		return nil, fmt.Errorf("failed to send request: %s", err)
 	}
 
-	state := generateRandomState()
-
-	queryParams := url.Values{}
-	queryParams.Set("response_type", "code")
-	queryParams.Set("client_id", conf.ClientID)
-	queryParams.Set("redirect_uri", conf.RedirectURI)
-	queryParams.Set("scope", strings.Join(conf.Scopes, " "))
-	queryParams.Set("state", state)
-
-	authURL := conf.AuthEndpoint + "?" + queryParams.Encode()
-
-	authReq, err := http.NewRequest("GET", authURL, nil)
-	authReq.Header.Set("Content-Type", "application/json")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %s", err)
+	arParams := AuthRequestParams{
+		ClientID:    conf.ClientID,
+		RedirectURI: conf.RedirectURI,
+		Scopes:      conf.Scopes,
 	}
 
-	authResp, err := client.Do(authReq)
+	code, err := authorizationRequest(client, conf.AuthEndpoint, arParams)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %s", err)
-	}
-	defer authResp.Body.Close()
-
-	var code string
-	if location, ok := authResp.Header["Location"]; ok && len(location) > 0 {
-		locationURL, err := url.Parse(location[0])
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse location: %s", err)
-		}
-		code = locationURL.Query().Get("code")
-		s := locationURL.Query().Get("state")
-		if s != state {
-			return nil, fmt.Errorf("state mismatch")
-		}
-	} else {
-		return nil, fmt.Errorf("failed to get code")
+		return nil, fmt.Errorf("failed to request authorization: %s", err)
 	}
 
 	clientAssertion, err := generateClientAssertion(*conf)
@@ -188,16 +209,16 @@ func executeAuthorizationCodeFlow(conf *Config) (*TokenResponse, error) {
 		return nil, fmt.Errorf("failed to generate client assertion: %s", err)
 	}
 
-	params := TokenRequestParams{
+	trParams := TokenRequestParams{
 		GrantType:       "authorization_code",
 		ClientID:        conf.ClientID,
 		RedirectURI:     conf.RedirectURI,
 		Scopes:          conf.Scopes,
 		ClientAssertion: string(clientAssertion),
-		Code:            code,
+		Code:            *code,
 	}
 
-	tokenResponse, err := tokenRequest(conf.TokenEndpoint, params)
+	tokenResponse, err := tokenRequest(conf.TokenEndpoint, trParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to request token: %s", err)
 	}
