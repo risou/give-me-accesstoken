@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -23,6 +22,7 @@ import (
 type Option struct {
 	ConfigFile string
 	ConfigSet  string
+	RawOutput  bool
 }
 
 type TokenResponse struct {
@@ -89,6 +89,8 @@ func generateClientAssertion(config Config) ([]byte, error) {
 	return signed, nil
 }
 
+// authorizationRequest handles the authorization process for the authorization code grant flow.
+// It is specifically designed for this grant type and does not support the implicit grant flow.
 func authorizationRequest(client *http.Client, endpoint string, p AuthRequestParams) (*string, error) {
 	state := generateRandomState()
 
@@ -252,27 +254,34 @@ func executeClientCredentialsFlow(conf *Config) (*TokenResponse, error) {
 
 func Run(option Option) error {
 
-	conf := loadConfig(option.ConfigFile, option.ConfigSet)
+	conf, err := loadConfig(option.ConfigFile, option.ConfigSet)
+	if err != nil {
+		return err
+	}
 
 	if conf == nil {
 		return fmt.Errorf("failed to load config")
 	}
 
 	var result *TokenResponse
-	var err error
 
 	switch conf.GrantType {
 	case "authorization_code":
-		log.Printf("[debug] Authorization Code Grant")
 		result, err = executeAuthorizationCodeFlow(conf)
 	case "client_credentials":
-		log.Printf("[debug] Client Credentials Grant")
 		result, err = executeClientCredentialsFlow(conf)
 	default:
 		return fmt.Errorf("unsupported authorization grant: %s", conf.GrantType)
 	}
+	if err != nil {
+		return err
+	}
 
-	log.Printf("[debug] Result: %#v", result)
+	if option.RawOutput {
+		fmt.Println(result.AccessToken)
+	} else {
+		fmt.Printf("access_token: %s\n", result.AccessToken)
+	}
 
 	return err
 }

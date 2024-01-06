@@ -12,6 +12,7 @@ func main() {
 	var option app.Option
 	flag.StringVar(&option.ConfigFile, "f", "config.yml", "Config file")
 	flag.StringVar(&option.ConfigSet, "c", "local", "Config Set")
+	flag.BoolVar(&option.RawOutput, "raw", false, "Raw output")
 
 	flag.Parse()
 

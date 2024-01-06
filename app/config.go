@@ -1,7 +1,7 @@
 package app
 
 import (
-	"log"
+	"fmt"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -29,22 +29,22 @@ type JWTClaim struct {
 	Audience string `yaml:"audience"`
 }
 
-func loadConfig(file string, configSet string) *Config {
+func loadConfig(file string, configSet string) (*Config, error) {
 	data, err := os.ReadFile(file)
 	if err != nil {
-		log.Fatalf("Failed to read config file: %s", err)
+		return nil, fmt.Errorf("failed to read config file: %s", err)
 	}
 
 	configs := make(map[string]Config)
 	if err := yaml.Unmarshal(data, &configs); err != nil {
-		log.Fatalf("Failed to unmarshal config file: %s", err)
+		return nil, fmt.Errorf("failed to unmarshal config file: %s", err)
 	}
 
 	for key, config := range configs {
 		if key == configSet {
-			log.Printf("[debug] Config: %#v", config)
-			return &config
+			return &config, nil
 		}
 	}
-	return nil
+
+	return nil, nil
 }
