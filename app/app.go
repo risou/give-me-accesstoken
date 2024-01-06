@@ -190,9 +190,14 @@ func executeAuthorizationCodeFlow(conf *Config) (*TokenResponse, error) {
 		return nil, fmt.Errorf("failed to create request: %s", err)
 	}
 
-	_, err = client.Do(loginReq)
+	resp, err := client.Do(loginReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %s", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("failed to login: %s", resp.Status)
 	}
 
 	arParams := AuthRequestParams{
