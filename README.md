@@ -2,6 +2,8 @@
 
 This is a command-line tool implemented in Go, providing a simple command to obtain access tokens from an authorization server in OAuth2.
 
+**This tool is created to assist in software development that leverages OAuth2 authentication. Since it require you to include passwords or private keys in plain text in the config, it should never be used in a production environment or as part of an application.**
+
 At present, it has been confirmed to work on macOS Sonoma, which is being used for development.
 
 ## Installation

@@ -28,6 +28,6 @@ local:
   algorithm: 'RS256'
   key: '{"key": "value"}'
   scopes:
-    - "openid"
-    - "email"
+    - "user.read"
+    - "user.write"
 
