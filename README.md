@@ -177,3 +177,5 @@ This tool allows you to specify the following three options.
   - By default, the tool expects a key named `local`
 - `--raw`
   - Using this option will output only the obtained access token
+- `--version`
+  - Display the version of this tool
