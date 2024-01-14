@@ -26,6 +26,7 @@ type Option struct {
 	ConfigFile string
 	ConfigSet  string
 	RawOutput  bool
+	Version    bool
 }
 
 type TokenResponse struct {
