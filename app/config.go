@@ -8,16 +8,15 @@ import (
 )
 
 type Config struct {
-	GrantType     string   `yaml:"grant_type"`
-	Login         Login    `yaml:"login"`
-	ClientID      string   `yaml:"client_id"`
-	RedirectURI   string   `yaml:"redirect_uri"`
-	AuthEndpoint  string   `yaml:"authorization_endpoint"`
-	TokenEndpoint string   `yaml:"token_endpoint"`
-	JWTClaims     JWTClaim `yaml:"jwt_claims"`
-	Alg           string   `yaml:"algorithm"`
-	Key           string   `yaml:"key"`
-	Scopes        []string `yaml:"scopes"`
+	GrantType     string              `yaml:"grant_type"`
+	Login         Login               `yaml:"login"`
+	ClientID      string              `yaml:"client_id"`
+	ClientSecret  string              `yaml:"client_secret"`
+	RedirectURI   string              `yaml:"redirect_uri"`
+	AuthEndpoint  string              `yaml:"authorization_endpoint"`
+	TokenEndpoint string              `yaml:"token_endpoint"`
+	PrivateKeyJwt PrivateKeyJwtConfig `yaml:"private_key_jwt"`
+	Scopes        []string            `yaml:"scopes"`
 }
 
 type Login struct {
@@ -27,6 +26,12 @@ type Login struct {
 
 type JWTClaim struct {
 	Audience string `yaml:"audience"`
+}
+
+type PrivateKeyJwtConfig struct {
+	JWTClaims JWTClaim `yaml:"jwt_claims"`
+	Alg       string   `yaml:"algorithm"`
+	Key       string   `yaml:"key"`
 }
 
 func loadConfig(file string, configSet string) (*Config, error) {
