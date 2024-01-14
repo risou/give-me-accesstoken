@@ -36,21 +36,50 @@ When executing, use the `-c` option to specify the target 'key', which allows th
 By default, the tool expects a key named `local`, so if you are only registering one type, it is simpler to use `local` as the key.
 
 ```yaml
+# client_secret_post
+name-of-something:
+  grant_type: 'authorization_code'
+  client_id: <client_id>
+  client_secret: <client_secret>
+  redirect_uri: <redirect_uri>
+  authorization_endpoint: <authorization_endpoint>
+  token_endpoint: <token_endpoint>
+  scopes:
+    - "email"
+```
+
+
+```yaml
+# private_key_jwt
+name-of-something:
+  grant_type: 'authorization_code'
+  client_id: <client_id>
+  redirect_uri: <redirect_uri>
+  authorization_endpoint: <authorization_endpoint>
+  token_endpoint: <token_endpoint>
+  private_key_jwt:
+    jwt_claims:
+      audience: <audience>
+    algorithm: 'RS256'
+    key: '{"key": "value"}'
+  scopes:
+    - "openid"
+    - "email"
+```
+
+```yaml
+# use session cookie for authorization request
 name-of-something:
   grant_type: 'authorization_code'
   login:
     auth_info: '{ "email": "username", "password": "password" }'
     login_endpoint: 'https://example.com/login'
   client_id: <client_id>
+  client_secret: <client_secret>
   redirect_uri: <redirect_uri>
   authorization_endpoint: <authorization_endpoint>
   token_endpoint: <token_endpoint>
-  jwt_claims:
-    audience: <audience>
-  algorithm: 'RS256'
-  key: '{"key": "value"}'
   scopes:
-    - "openid"
     - "email"
 ```
 
@@ -58,31 +87,37 @@ For each, set the following:
 
 - grant_type
   - Set to `authorization_code`
-- login
-  - Describe information for user authentication
-  - auth_info
-    - Enter the value in JSON format to be sent in the POST request for user authentication in this field
-  - login_endpoint
-    - Enter the URL of the endpoint for user authentication
 - client_id
   - Enter the client ID issued by the authorization server
+- client_secret
+  - Enter the client secret issued by the authorization server
+  - If this item is present, treat it as `client_secret_post` as the client authentication method
 - redirect_uri
   - Enter the redirect URI registered with the authorization server
 - authorization_endpoint
   - Enter the URL of the authorization endpoint
 - token_endpoint
   - Enter the URL of the token endpoint
-- jwt_claims
-  - Set only 'audience' (aud) claim
-  - To use the 'private_key_jwt' format for requesting an access token
-  - audience
-    - Enter the expected content for the 'audience' (aud) claim in the JWT
-- algorithm
-  - Set the algorithm to be used for signing the JWT
-- key
-  - Enter the key to be used for signing the JWT
+- private_key_jwt
+  - Enter following items if you want to use the `private_key_jwt` format
+  - jwt_claims
+    - Set only 'audience' (aud) claim
+    - To use the 'private_key_jwt' format for requesting an access token
+    - audience
+      - Enter the expected content for the 'audience' (aud) claim in the JWT
+  - algorithm
+    - Set the algorithm to be used for signing the JWT
+  - key
+    - Enter the key to be used for signing the JWT
 - scopes
   - Enter the scopes to be requested
+- login
+  - Describe information for user authentication
+  - auth_info
+    - Enter the value in JSON format to be sent in the POST request for user authentication in this field
+  - login_endpoint
+    - Enter the URL of the endpoint for user authentication
+    - If this item is present, log in with the API and use the session information held in the cookie for authorization requests
 
 #### client credentials grant
 
@@ -109,19 +144,24 @@ For each, set the following:
   - Set to `client_credentials`
 - client_id
   - Enter the client ID issued by the authorization server
+- client_secret
+  - Enter the client secret issued by the authorization server
+  - If this item is present, treat it as `client_secret_post` as the client authentication method
 - redirect_uri
   - Enter the redirect URI registered with the authorization server
 - token_endpoint
   - Enter the URL of the token endpoint
-- jwt_claims
-  - Set only 'audience' (aud) claim
-  - To use the 'private_key_jwt' format for requesting an access token
-  - audience
-    - Enter the expected content for the 'audience' (aud) claim in the JWT
-- algorithm
-  - Set the algorithm to be used for signing the JWT
-- key
-  - Enter the key to be used for signing the JWT
+- private_key_jwt
+  - Enter following items if you want to use the `private_key_jwt` format
+  - jwt_claims
+    - Set only 'audience' (aud) claim
+    - To use the 'private_key_jwt' format for requesting an access token
+    - audience
+      - Enter the expected content for the 'audience' (aud) claim in the JWT
+  - algorithm
+    - Set the algorithm to be used for signing the JWT
+  - key
+    - Enter the key to be used for signing the JWT
 - scopes
   - Enter the scopes to be requested
 
