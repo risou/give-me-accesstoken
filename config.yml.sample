@@ -1,5 +1,18 @@
+# client authentication method: client_secret_post
+# authorization grant type: authorization_code
+# login with browser
+google-login-sample:
+  grant_type: 'authorization_code'
+  client_id: '****************'
+  client_secret: '****************'
+  redirect_uri: 'http://localhost:8080/callback'
+  authorization_endpoint: 'https://accounts.google.com/o/oauth2/v2/auth'
+  token_endpoint: 'https://www.googleapis.com/oauth2/v4/token'
+  scopes:
+    - "email"
 # client authentication method: private_key_jwt
 # authorization grant type: authorization_code
+# login without browser
 authorization_code_sample:
   grant_type: 'authorization_code'
   login:
