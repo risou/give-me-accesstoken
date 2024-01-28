@@ -8,12 +8,8 @@ At present, it has been confirmed to work on macOS Sonoma, which is being used f
 
 ## Installation
 
-Since this repository has not yet released any binaries, please follow the steps below to build it.
-
 ```shell
-git clone --depth 1 https://github.com/risou/give-me-accesstoken.git
-cd give-me-accesstoken
-go build
+go install github.com/risou/give-me-accesstoken@latest
 ```
 
 ## How to use
